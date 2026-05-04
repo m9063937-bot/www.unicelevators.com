@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+<title>Unic Elevators</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@800;900&family=Noto+Sans+Telugu:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --r:#9B1111; --g:#F0A500; --n:#060d1f; --n2:#0d1628;
+  --tx:#f0f4ff; --t2:#a8b4cf; --br:rgba(255,255,255,0.08);
+  --blue:#4285F4; --green:#22c55e;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--n);color:var(--tx);font-family:'Plus Jakarta Sans',sans-serif;overflow-x:hidden}
+.screen{display:none;padding:20px;min-height:100vh}
+.screen.active{display:block}
+header{padding:15px 20px;background:rgba(6,13,31,0.95);border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(8px)}
+.btn-back{background:var(--n2);border:1px solid var(--br);color:var(--tx);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer}
+.logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;color:var(--g);letter-spacing:1px}
+.card{background:var(--n2);border:1px solid var(--br);border-radius:16px;padding:20px;margin-bottom:15px}
+.btn-main{width:100%;padding:16px;border-radius:12px;border:none;font-weight:700;cursor:pointer;margin-bottom:12px;font-size:16px;transition:.2s}
+.btn-primary{background:var(--r);color:white}
+.btn-outline{background:var(--n2);color:var(--tx);border:1px solid var(--br)}
+.btn-emergency{background:#fee2e2;color:#991b1b;border:2px solid #f87171}
+input,textarea,select{width:100%;padding:12px;background:var(--n);border:1px solid var(--br);border-radius:8px;color:white;margin-bottom:15px;font-size:16px;font-family:inherit}
+select option{background:var(--n2)}
+label{font-size:12px;color:var(--t2);display:block;margin-bottom:4px}
+.badge{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:bold;text-transform:uppercase}
+.st-pending{background:rgba(255,255,255,0.1);color:white}
+.st-assigned{background:rgba(66,133,244,0.2);color:var(--blue)}
+.st-reached{background:rgba(240,165,0,0.2);color:var(--g)}
+.st-completed{background:rgba(34,197,94,0.2);color:var(--green)}
+#loader{position:fixed;inset:0;background:rgba(6,13,31,0.9);display:none;align-items:center;justify-content:center;z-index:2000;flex-direction:column}
+.spinner{width:40px;height:40px;border:4px solid var(--g);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gps-msg{font-size:11px;text-align:center;margin-bottom:15px;font-weight:600;padding:5px;border-radius:4px}
+.gps-err{background:rgba(155,17,17,0.1);color:#ff6b6b}
+.gps-ok{background:rgba(34,197,94,0.1);color:var(--green)}
+
+/* Sync bar */
+.sync-bar{font-size:11px;text-align:center;padding:8px 10px;background:rgba(66,133,244,0.1);color:var(--blue);border-radius:8px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px}
+.conn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--blue)}
+.conn-dot.live{background:var(--green);animation:pulse 2s infinite}
+.conn-dot.err{background:#ff6b6b}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Tabs */
+.tabs{display:flex;gap:8px;margin-bottom:15px}
+.tab{flex:1;padding:10px;border-radius:8px;border:1px solid var(--br);background:var(--n2);color:var(--t2);font-size:12px;font-weight:700;cursor:pointer;text-align:center;transition:.2s;position:relative}
+.tab.active{background:var(--r);color:white;border-color:var(--r)}
+.tab-badge{display:inline-block;background:rgba(255,255,255,0.25);color:inherit;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;font-weight:900}
+.tab.active .tab-badge{background:rgba(255,255,255,0.3)}
+
+/* Filter bar */
+.filter-bar{background:var(--n2);border:1px solid var(--br);border-radius:10px;padding:12px;margin-bottom:12px}
+.filter-bar label{font-size:11px;color:var(--t2);margin-bottom:4px}
+.filter-bar select,.filter-bar input{margin-bottom:0;padding:8px;font-size:13px}
+.filter-row{display:flex;gap:8px;align-items:flex-end}
+.filter-row>div{flex:1}
+.filter-row button{flex-shrink:0;padding:8px 14px;border-radius:8px;border:none;background:var(--blue);color:white;font-weight:700;font-size:12px;cursor:pointer;margin-bottom:0;height:38px}
+.search-row{margin-top:10px}
+.search-row input{margin-bottom:0;padding:8px 10px;font-size:13px}
+
+/* Empty state */
+.empty{text-align:center;padding:40px 20px;color:var(--t2)}
+.empty .icon{font-size:40px;margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="spinner"></div>
+  <p style="margin-top:15px;color:var(--g);letter-spacing:2px;font-size:10px" id="loader-msg">SAVING...</p>
+</div>
+
+<header id="main-header" style="display:none">
+  <button class="btn-back" id="back-btn" onclick="navBack()">← BACK</button>
+  <div class="logo">UNIC ELEVATORS</div>
+  <div style="width:60px"></div>
+</header>
+
+<div id="scr-lang" class="screen active">
+  <div style="text-align:center;margin-top:100px">
+    <h1 style="font-size:36px;color:var(--g);font-family:'Barlow Condensed'">UNIC ELEVATORS</h1>
+    <p style="margin-bottom:40px;color:var(--t2)">Choose Language / భాష</p>
+    <button class="btn-main btn-outline" onclick="setLang('en')">ENGLISH</button>
+    <button class="btn-main btn-outline" style="font-family:'Noto Sans Telugu'" onclick="setLang('te')">తెలుగు</button>
+  </div>
+</div>
+
+<div id="scr-role" class="screen">
+  <div style="text-align:center;margin-top:50px">
+    <h2 id="txt-roleTitle">Select User Type</h2>
+    <div style="margin-top:30px">
+      <button class="btn-main btn-outline" onclick="gotoScreen('scr-customer-menu')">Customer</button>
+      <button class="btn-main btn-outline" onclick="openLogin('tech')">Technician</button>
+      <button class="btn-main btn-primary" onclick="openLogin('admin')">Admin Panel</button>
+    </div>
+  </div>
+</div>
+
+<div id="scr-login" class="screen">
+  <div class="card" style="max-width:400px;margin:40px auto">
+    <h2 id="txt-login">Login</h2>
+    <div style="margin-top:20px">
+      <label>Your Name</label>
+      <input type="text" id="login-name" placeholder="Enter your full name">
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="Enter password">
+      <button class="btn-main btn-primary" onclick="handleLogin()">Login</button>
+      <p id="login-err" style="color:#ff6b6b;text-align:center;display:none;font-size:12px">Incorrect Password</p>
+    </div>
+  </div>
+</div>
+
+<div id="scr-customer-menu" class="screen">
+  <div style="text-align:center;margin-top:40px">
+    <h2 id="txt-custMenu">Customer Portal</h2>
+    <button class="btn-main btn-primary" style="margin-top:30px" onclick="gotoScreen('scr-file-complaint')">File a Complaint</button>
+    <button class="btn-main btn-outline" onclick="gotoScreen('scr-track-complaint')">Track My Complaint</button>
+  </div>
+</div>
+
+<div id="scr-file-complaint" class="screen">
+  <div class="card">
+    <h2 id="txt-formTitle">Service Selection</h2>
+    <button class="btn-main btn-outline" style="margin-top:20px" onclick="openForm('installation')">New Lift Installation</button>
+    <button class="btn-main btn-outline" onclick="openForm('service')">Monthly Service Request</button>
+    <button class="btn-main btn-emergency" onclick="openForm('emergency')">⚠️ EMERGENCY (Lift Stuck)</button>
+  </div>
+</div>
+
+<div id="scr-details-form" class="screen">
+  <div class="card">
+    <h2 id="disp-type-name" style="color:var(--g)">Details</h2>
+    <div style="margin-top:20px">
+      <label>Full Name *</label><input type="text" id="inp-name" placeholder="Your full name">
+      <label>Mobile Number *</label><input type="tel" id="inp-phone" placeholder="10-digit mobile number">
+      <label>Address</label><textarea id="inp-addr" rows="3" placeholder="Building / area / landmark"></textarea>
+      <label>Remarks / Issue</label><textarea id="inp-issue" rows="2" placeholder="Describe the problem"></textarea>
+      <button id="btn-loc" class="btn-main btn-outline" onclick="getLocation()" style="color:var(--blue);border-color:var(--blue)">📍 Share My Location (GPS)</button>
+      <div id="loc-status" class="gps-msg" style="display:none"></div>
+      <button class="btn-main btn-primary" onclick="submitTicket()">Submit Request</button>
+      <div id="submit-err" style="display:none;background:rgba(155,17,17,0.15);color:#ff6b6b;padding:12px;border-radius:8px;font-size:12px;margin-top:-8px;line-height:1.6"></div>
+    </div>
+  </div>
+</div>
+
+<div id="scr-track-complaint" class="screen">
+  <div class="card">
+    <h2 id="txt-trackTitle">Track Progress</h2>
+    <input type="text" id="inp-track-val" placeholder="Enter Ticket ID or Mobile Number" style="margin-top:20px">
+    <button class="btn-main btn-primary" onclick="trackTicket()">Track Now</button>
+  </div>
+  <div id="track-result"></div>
+</div>
+
+<div id="scr-tech" class="screen">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <h3>My Assignments</h3>
+    <span id="tech-user-tag" style="font-size:12px;color:var(--g)"></span>
+  </div>
+
+  <div class="sync-bar" id="tech-sync-bar">
+    <span class="conn-dot" id="tech-dot"></span>
+    <span id="tech-sync-text">Loading all tickets from cloud...</span>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-row">
+      <div>
+        <label>Show tickets from</label>
+        <select id="tech-filter-range" onchange="applyTechFilter()">
+          <option value="active">Active Only</option>
+          <option value="today">Today</option>
+          <option value="7">Last 7 Days</option>
+          <option value="30">Last 30 Days</option>
+          <option value="all">All Time</option>
+        </select>
+      </div>
+      <button onclick="forceReload('tech')">🔄 Refresh</button>
+    </div>
+    <div class="search-row">
+      <label>Search by name, ID or phone</label>
+      <input type="text" id="tech-search" placeholder="e.g. Ramesh, 99001, 9876543210" oninput="applyTechFilter()">
+    </div>
+  </div>
+
+  <div id="tech-list" style="margin-top:5px"></div>
+</div>
+
+<div id="scr-admin" class="screen">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <h3>Admin Control</h3>
+    <span id="admin-user-tag" style="font-size:12px;color:var(--g)"></span>
+  </div>
+
+  <div class="sync-bar" id="admin-sync-bar">
+    <span class="conn-dot" id="admin-dot"></span>
+    <span id="admin-sync-text">Loading all tickets from cloud...</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" id="tab-active" onclick="switchAdminTab('active')">Active <span class="tab-badge" id="badge-active">0</span></div>
+    <div class="tab" id="tab-completed" onclick="switchAdminTab('completed')">Done <span class="tab-badge" id="badge-completed">0</span></div>
+    <div class="tab" id="tab-all" onclick="switchAdminTab('all')">All <span class="tab-badge" id="badge-all">0</span></div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-row">
+      <div>
+        <label>Date range</label>
+        <select id="admin-filter-range" onchange="applyAdminFilter()">
+          <option value="7">Last 7 Days</option>
+          <option value="30">Last 30 Days</option>
+          <option value="all" selected>All Time</option>
+        </select>
+      </div>
+      <button onclick="forceReload('admin')">🔄 Refresh</button>
+    </div>
+    <div class="search-row">
+      <label>Search by name, ID or phone</label>
+      <input type="text" id="admin-search" placeholder="e.g. Ramesh, 99001, 9876543210" oninput="applyAdminFilter()">
+    </div>
+  </div>
+
+  <div id="admin-stats" style="display:flex;gap:8px;margin-bottom:12px"></div>
+
+  <div id="admin-list" style="margin-top:5px"></div>
+</div>
+
+<div id="scr-success" class="screen">
+  <div style="text-align:center;padding-top:60px">
+    <h2 style="color:var(--green)">✅ REGISTERED!</h2>
+    <div class="card" style="margin-top:30px">
+      <p style="font-size:12px;color:var(--t2)">YOUR TRACKING ID</p>
+      <h1 id="new-id" style="font-size:48px;color:var(--g)">00000</h1>
+      <p style="font-size:11px;color:var(--t2);margin-top:8px">Saved permanently to cloud ☁️<br>Admin &amp; technician will see this even if they open tomorrow, next week, or next month.</p>
+    </div>
+    <button class="btn-main btn-primary" style="margin-top:20px" onclick="gotoScreen('scr-role')">CLOSE</button>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, onValue, off, update, get, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── FIREBASE ─────────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyA8Ge3WFWVJiLEoNJnmlStgThzA70eixAU",
+  authDomain: "unic-elevators-2c01c.firebaseapp.com",
+  databaseURL: "https://unic-elevators-2c01c-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "unic-elevators-2c01c",
+  storageBucket: "unic-elevators-2c01c.firebasestorage.app",
+  messagingSenderId: "1002807153207",
+  appId: "1:1002807153207:web:a697e2ed1faa95d71165b2"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+const ticketsRef = ref(db, 'tickets');
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let LANG = 'en', HISTORY = ['scr-lang'], COORDS = null;
+let ACTIVE_TYPE = 'service', LOGIN_ROLE = '', CURRENT_USER_NAME = '';
+let ALL_TICKETS = [];
+let ADMIN_TAB = 'active';
+let currentListener = null;
+
+// ── TRANSLATIONS ──────────────────────────────────────────────────────────────
+const T = {
+  en:{ roleTitle:"Select User Type", custMenu:"Customer Portal", formTitle:"Service Selection",
+       trackTitle:"Track Complaint", login:"Login", installation:"New Installation",
+       service:"Monthly Service", emergency:"EMERGENCY" },
+  te:{ roleTitle:"యూజర్ రకాన్ని ఎంచుకోండి", custMenu:"కస్టమర్ పోర్టల్",
+       formTitle:"సర్వీస్ ఎంపిక", trackTitle:"ట్రాకింగ్", login:"లాగిన్",
+       installation:"కొత్త ఇన్‌స్టాలేషన్", service:"నెలవారీ సర్వీస్", emergency:"అత్యవసర అభ్యర్థన" }
+};
+
+const PROTECTED = ['scr-tech','scr-admin'];
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+window.updateText = () => {
+  for (let key in T[LANG]) {
+    let el = document.getElementById('txt-' + key);
+    if(el) el.innerText = T[LANG][key];
+  }
+};
+
+window.setLang = l => { LANG = l; updateText(); gotoScreen('scr-role'); };
+window.gotoScreen = id => { HISTORY.push(id); renderScreen(id); };
+
+window.navBack = () => {
+  const cur = HISTORY[HISTORY.length - 1];
+  if (PROTECTED.includes(cur)) {
+    if (currentListener) off(ticketsRef, 'value', currentListener); // Cleanup listener on logout
+    HISTORY = ['scr-lang', 'scr-role'];
+    renderScreen('scr-role');
+    return;
+  }
+  if (HISTORY.length > 1) {
+    HISTORY.pop();
+    renderScreen(HISTORY[HISTORY.length - 1]);
+  }
+};
+
+window.renderScreen = id => {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const hdr = document.getElementById('main-header');
+  const backBtn = document.getElementById('back-btn');
+  hdr.style.display = id === 'scr-lang' ? 'none' : 'flex';
+
+  if (PROTECTED.includes(id)) {
+    backBtn.textContent = '🚪 LOGOUT';
+  } else {
+    backBtn.textContent = '← BACK';
+  }
+
+  if (id === 'scr-tech')  startListener('tech');
+  if (id === 'scr-admin') startListener('admin');
+  window.scrollTo(0, 0);
+};
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+window.openLogin = role => {
+  LOGIN_ROLE = role;
+  document.getElementById('login-err').style.display = 'none';
+  document.getElementById('login-name').value = '';
+  document.getElementById('login-pass').value = '';
+  gotoScreen('scr-login');
+};
+
+window.handleLogin = () => {
+  const n = document.getElementById('login-name').value.trim();
+  const p = document.getElementById('login-pass').value;
+  if (!n) { alert("Enter your name"); return; }
+  const ok = (LOGIN_ROLE === 'tech' && p === '1111') || (LOGIN_ROLE === 'admin' && p === '2222');
+  if (ok) {
+    CURRENT_USER_NAME = n;
+    document.getElementById(LOGIN_ROLE === 'tech' ? 'tech-user-tag' : 'admin-user-tag').innerText = "👤 " + n;
+    HISTORY = ['scr-lang', 'scr-role'];
+    gotoScreen('scr-' + LOGIN_ROLE);
+  } else {
+    document.getElementById('login-err').style.display = 'block';
+  }
+};
+
+// ── GPS ───────────────────────────────────────────────────────────────────────
+window.getLocation = () => {
+  const s = document.getElementById('loc-status');
+  s.style.display = 'block'; s.className = 'gps-msg'; s.innerText = "ACCESSING GPS...";
+  if (!navigator.geolocation) { s.innerText = "GPS not supported."; s.className = 'gps-msg gps-err'; return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      COORDS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      s.innerText = `✓ Location Captured (${COORDS.lat.toFixed(4)}, ${COORDS.lng.toFixed(4)})`;
+      s.className = 'gps-msg gps-ok';
+      document.getElementById('btn-loc').style.borderColor = "var(--green)";
+    },
+    () => { s.innerText = "GPS Error — enable location permission & retry."; s.className = 'gps-msg gps-err'; },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+};
+
+// ── FORM ──────────────────────────────────────────────────────────────────────
+window.openForm = type => {
+  ACTIVE_TYPE = type;
+  document.getElementById('disp-type-name').innerText = T[LANG][type];
+  document.getElementById('submit-err').style.display = 'none';
+  gotoScreen('scr-details-form');
+};
+
+function clearInputs() {
+  document.getElementById('inp-name').value = '';
+  document.getElementById('inp-phone').value = '';
+  document.getElementById('inp-addr').value = '';
+  document.getElementById('inp-issue').value = '';
+  document.getElementById('loc-status').style.display = 'none';
+  COORDS = null;
+}
+
+window.toggleLoader = (show, msg="SAVING...") => {
+  const l = document.getElementById('loader');
+  document.getElementById('loader-msg').innerText = msg;
+  l.style.display = show ? 'flex' : 'none';
+};
+
+// ── SUBMIT ────────────────────────────────────────────────────────────────────
+window.submitTicket = async () => {
+  const errBox = document.getElementById('submit-err');
+  errBox.style.display = 'none';
+  const n = document.getElementById('inp-name').value.trim();
+  const p = document.getElementById('inp-phone').value.trim();
+  if (!n || !p) { errBox.style.display = 'block'; errBox.innerText = "❌ Name and Phone are required."; return; }
+
+  toggleLoader(true, "SAVING TO CLOUD...");
+  const id = Math.floor(10000 + Math.random() * 90000).toString();
+  const ticket = {
+    id, name: n, phone: p, type: ACTIVE_TYPE,
+    addr:  document.getElementById('inp-addr').value.trim(),
+    issue: document.getElementById('inp-issue').value.trim(),
+    status: 'pending',
+    lat: COORDS?.lat || null, lng: COORDS?.lng || null,
+    created: Date.now()
+  };
+
+  try {
+    await push(ticketsRef, ticket);
+    document.getElementById('new-id').innerText = id;
+    clearInputs();
+    toggleLoader(false);
+    gotoScreen('scr-success');
+  } catch (e) {
+    toggleLoader(false);
+    errBox.style.display = 'block';
+    errBox.innerHTML = `❌ <b>Save Failed — your request was NOT sent.</b><br>Error: ${e.message}<br><br>
+      <b>Fix:</b> Firebase Console → Realtime Database → Rules → set <code style="background:#111;padding:2px 4px;border-radius:3px">".read": true, ".write": true</code>`;
+  }
+};
+
+// ── REALTIME DATA SYNC (ChatGPT Integration) ──────────────────────────────────
+window.startListener = (role) => {
+  const dot = document.getElementById(role + '-dot');
+  const txt = document.getElementById(role + '-sync-text');
+
+  if (dot) dot.className = 'conn-dot';
+  if (txt) txt.innerText = 'Syncing...';
+
+  // Detach previous listener if it exists to avoid duplications
+  if (currentListener) off(ticketsRef, 'value', currentListener);
+
+  currentListener = onValue(ticketsRef, (snapshot) => {
+    if (dot) dot.className = 'conn-dot live';
+    if (txt) txt.innerText = 'Live Synced';
+
+    const data = snapshot.val();
+    ALL_TICKETS = [];
+
+    if (data) {
+      Object.entries(data).forEach(([key, val]) => {
+         ALL_TICKETS.push({ key, ...val });
+      });
+      // Sort newest first
+      ALL_TICKETS.sort((a, b) => b.created - a.created);
+    }
+
+    // Refresh UI automatically when data changes
+    if (role === 'tech') applyTechFilter();
+    if (role === 'admin') applyAdminFilter();
+  }, (error) => {
+    if (dot) dot.className = 'conn-dot err';
+    if (txt) txt.innerText = 'Sync Error: ' + error.message;
+  });
+};
+
+// ── TRACKING ──────────────────────────────────────────────────────────────────
+window.trackTicket = async () => {
+  const val = document.getElementById('inp-track-val').value.trim();
+  const res = document.getElementById('track-result');
+  if(!val) return;
+  
+  res.innerHTML = '<div style="text-align:center;margin-top:20px;color:var(--t2)">Searching...</div>';
+  
+  try {
+    const snap = await get(ticketsRef);
+    const data = snap.val();
+    let found = null;
+    if(data) {
+      Object.values(data).forEach(t => {
+        if(t.id === val || t.phone === val) found = t;
+      });
+    }
+    
+    if(found) {
+      res.innerHTML = `
+        <div class="card" style="margin-top:20px; border-left:4px solid var(--blue)">
+          <div style="display:flex; justify-content:space-between">
+            <b>Ticket ID: ${found.id}</b>
+            <span class="badge st-${found.status}">${found.status.toUpperCase()}</span>
+          </div>
+          <div style="margin-top:10px; font-size:14px; color:var(--t2)">
+            <b>Service Type:</b> ${T.en[found.type] || found.type} <br>
+            <b>Raised On:</b> ${new Date(found.created).toLocaleDateString()}
+          </div>
+        </div>`;
+    } else {
+      res.innerHTML = `<div style="text-align:center;margin-top:20px;color:#ff6b6b">No ticket found with that ID or Phone Number.</div>`;
+    }
+  } catch(e) {
+    res.innerHTML = `<div style="text-align:center;margin-top:20px;color:#ff6b6b">Error fetching details.</div>`;
+  }
+};
+
+// ── FILTERING & RENDERING ──────────────────────────────────────────────────────
+window.forceReload = (role) => startListener(role);
+window.applyTechFilter = () => renderList('tech');
+window.applyAdminFilter = () => renderList('admin');
+
+window.switchAdminTab = (tab) => {
+  ADMIN_TAB = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  renderList('admin');
+};
+
+function filterData(data, role) {
+  let q = document.getElementById(role + '-search').value.toLowerCase();
+  let range = document.getElementById(role + '-filter-range').value;
+
+  let res = data.filter(t => {
+    let matchStr = `${t.name} ${t.id} ${t.phone}`.toLowerCase();
+    if(q && !matchStr.includes(q)) return false;
+
+    let days = (Date.now() - t.created) / (1000 * 3600 * 24);
+    if(range === 'today' && days > 1) return false;
+    if(range === '7' && days > 7) return false;
+    if(range === '30' && days > 30) return false;
+    if(range === 'active' && t.status === 'completed') return false;
+
+    return true;
+  });
+
+  if(role === 'admin') {
+     if(ADMIN_TAB === 'active') res = res.filter(t => t.status !== 'completed');
+     if(ADMIN_TAB === 'completed') res = res.filter(t => t.status === 'completed');
+  }
+
+  return res;
+}
+
+function renderList(role) {
+  const listEl = document.getElementById(role + '-list');
+  let filtered = filterData(ALL_TICKETS, role);
+
+  if (role === 'admin') {
+    document.getElementById('badge-all').innerText = ALL_TICKETS.length;
+    document.getElementById('badge-active').innerText = ALL_TICKETS.filter(t => t.status !== 'completed').length;
+    document.getElementById('badge-completed').innerText = ALL_TICKETS.filter(t => t.status === 'completed').length;
+  }
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<div class="empty"><div class="icon">📭</div>No tickets found</div>';
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(t => {
+    let selectHtml = `
+      <select onchange="updateStatus('${t.key}', this.value)" style="margin-bottom:0; padding:8px; font-size:13px; margin-top:10px">
+        <option value="pending" ${t.status === 'pending' ? 'selected' : ''}>⏳ Pending</option>
+        <option value="assigned" ${t.status === 'assigned' ? 'selected' : ''}>👷 Assigned</option>
+        <option value="reached" ${t.status === 'reached' ? 'selected' : ''}>📍 Reached</option>
+        <option value="completed" ${t.status === 'completed' ? 'selected' : ''}>✅ Completed</option>
+      </select>
+    `;
+    
+    let deleteBtn = role === 'admin' ? 
+      `<button onclick="deleteTicket('${t.key}')" class="btn-main btn-emergency" style="margin-bottom:0; padding:8px; margin-top:10px; font-size:13px">🗑️ Delete</button>` : '';
+
+    let urgentBorder = t.type === 'emergency' ? 'border-left: 4px solid #f87171;' : '';
+
+    return `
+      <div class="card" style="margin-bottom:10px; ${urgentBorder}">
+        <div style="display:flex;justify-content:space-between; align-items:center">
+          <b style="font-size:14px">ID: ${t.id}</b>
+          <span class="badge st-${t.status}">${t.status}</span>
+        </div>
+        <div style="font-size:13px;margin-top:8px;color:var(--t2);line-height:1.6">
+          <b style="color:white">${t.name}</b> (${t.phone})<br>
+          <b>Type:</b> ${T.en[t.type] || t.type} ${t.type === 'emergency' ? '⚠️' : ''}<br>
+          <b>Address:</b> ${t.addr || 'N/A'}<br>
+          <b>Issue:</b> ${t.issue || 'N/A'}<br>
+          <div style="margin-top:6px; font-size:11px">
+            📅 ${new Date(t.created).toLocaleString()}<br>
+            ${t.lat ? `<a href="https://maps.google.com/?q=${t.lat},${t.lng}" target="_blank" style="color:var(--blue);text-decoration:none;font-weight:bold;display:inline-block;margin-top:4px">📍 Open in Maps</a>` : ''}
+          </div>
+        </div>
+        <div style="display:flex; gap:8px">
+          <div style="flex:1">${selectHtml}</div>
+          ${deleteBtn ? `<div style="flex:0.5">${deleteBtn}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── TICKET ACTIONS ─────────────────────────────────────────────────────────────
+window.updateStatus = async (key, newStatus) => {
+  try {
+    await update(ref(db, `tickets/${key}`), { status: newStatus });
+    // Note: No need to re-render manually here, `onValue` listener will trigger it automatically!
+  } catch(e) {
+    alert("Error updating status: " + e.message);
+  }
+};
+
+window.deleteTicket = async (key) => {
+  if (confirm("Are you sure you want to permanently delete this ticket?")) {
+    try {
+      await remove(ref(db, `tickets/${key}`));
+    } catch(e) {
+      alert("Error deleting ticket: " + e.message);
+    }
+  }
+};
+
+// Start UI
+updateText();
+</script>
+</body>
+</html>
